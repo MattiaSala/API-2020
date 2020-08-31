@@ -67,7 +67,10 @@ void deleteElements(unsigned int a1, unsigned int a2);
 void undo_redo(unsigned int flag);
 struct cmd_node *pop_undo_top();
 
-void pop_undo_restore_prev_state(struct cmd_node* popped_node);
+//void pop_undo_restore_prev_state(struct cmd_node* popped_node);
+void restore_undo();
+
+struct cmd_node *create_redo_node(int address1, int address2, char cmd);
 void free_redo_stack();
 
 /*===============================================================================*/
@@ -100,12 +103,14 @@ int main(int argc, char const *argv[]) {
 
                 //printf("COMANDO IN INPUT: %d,%d%c\n",address1,address2,cmnd);
 
-                if(hashtable_size < address2){
-                    resizeHashTable((size_t)address2);
-                }
+                
 
                 struct cmd_node *new_node = create_c_node(address1,address2); //createnode(address1,address2,cmnd,strings);
                 push_undo_stack(new_node);
+
+                if(hashtable_size < address2){
+                    resizeHashTable((size_t)address2);
+                }
 
                 for(int i=0; i <= (address2-address1);i++){
                     in_line = fgets(maxLine,MAX_LENGTH,stdin);
@@ -206,15 +211,22 @@ int main(int argc, char const *argv[]) {
 *   @param int new_dimension --> new dimension of the hash table
 */
 void resizeHashTable(size_t new_dimension){
-    if(hashtable_size == 0 && hashtable == NULL){
-        hashtable = (key *)calloc(new_dimension,sizeof(key));
-    }else{
-        hashtable = (key *)realloc(hashtable,(new_dimension)*sizeof(key));
-        for(int i=hashtable_size; i<new_dimension; i++){    //meh non mi piace ma fa funzionare
-            hashtable[i].curr_line = NULL;
+    if(new_dimension == 0){
+        if(hashtable != NULL){
+            free(hashtable);
+            hashtable_size = 0;
         }
+    }else{
+        if(hashtable_size == 0 && hashtable == NULL){
+            hashtable = (key *)calloc(new_dimension,sizeof(key));        
+        }else{
+            hashtable = (key *)realloc(hashtable,(new_dimension)*sizeof(key));
+            for(int i=hashtable_size; i<new_dimension; i++){    //meh non mi piace ma fa funzionare
+                hashtable[i].curr_line = NULL;
+            }
+        }
+        hashtable_size = new_dimension;
     }
-    hashtable_size = new_dimension;
 }
 
 /*
@@ -256,7 +268,12 @@ void print(unsigned int addr_start, unsigned int addr_end){
 
     }else if( addr_start <= hashtable_size && addr_end <= hashtable_size && hashtable != NULL ){  //Se sia addr_start che addr_end sono dimensioni interne alla hashtable_size
         for(int i=addr_start-1; i< addr_end;i++){
-            fputs(hashtable[i].curr_line ,stdout);
+            //if(hashtable[i].curr_line == NULL){
+            //    fputs("STAI A LEGGE NULL FRATM\n",stdout);
+            //}else{
+                fputs(hashtable[i].curr_line ,stdout);
+            //}
+            
         }
     }
 }
@@ -534,16 +551,43 @@ void undo_redo(unsigned int flag){
         }else if( (num_of_undo > 0) && (num_of_redo == 0) ){    //SOLO UNDO
             if(num_of_undo >= undo_stack_size){
                 //porta il restante dello stack principale, dentro l'undo_stack
-                while (undo_stack_size != 0)
+                //printf("REDO STACK SIZE: %d\n",redo_stack_size);
+                //printf("UNDO STACK SIZE: %d\n",undo_stack_size);
+                while (undo_stack_size != 0 && undo_top != NULL)
                 {
-                    struct cmd_node *node_popped = pop_undo_top();
-                    pop_undo_restore_prev_state(node_popped);
-                    push_redo_stack(node_popped);
+                    //pop_undo_restore_prev_state(undo_top);
+                    //struct cmd_node *node_popped = undo_top;//pop_undo_top();
+                    //undo_top = node_popped->prev;
+                    //node_popped->prev = NULL;
+
+                    //
+                    //push_redo_stack(node_popped);
                     //if(node_popped != NULL){
                     //    pop_restorePrevState(node_popped);
                     //    push_undo(node_popped);
                     //}
+
+                    struct cmd_node *new_redo_node = create_redo_node(undo_top->addr1, undo_top->addr2, undo_top->cmd);
+                    push_redo_stack(new_redo_node);
+                    //printf("REDO STACK SIZE: %d\n",redo_stack_size);
+                    restore_undo();
+
+                    /*----PERÒ È SBAGLIATA DA FARE COSÌ-----*/
+                    //free(hashtable);
+                    //hashtable = NULL;
+                    //hashtable_size = 0;
+                    /*---------*/
+                    
+                    struct cmd_node *old_undo_node = undo_top;
+                    undo_top = old_undo_node->prev;
+
+                    free(old_undo_node->lines);
+                    free(old_undo_node);
+
+                    undo_stack_size--;
                 }
+
+                //printf("UNDO STACK SIZE: %d\n",undo_stack_size);
                 
             }else{
                 //porta num_of_undo nodi da stack principale in undo_stack
@@ -552,24 +596,61 @@ void undo_redo(unsigned int flag){
                     pop_restorePrevState(node_popped);
                     push_undo(node_popped);
                 }*/ 
+                for(int i=1; i<=(num_of_undo);i++){
+                    struct cmd_node *new_redo_node = create_redo_node(undo_top->addr1, undo_top->addr2, undo_top->cmd);
+                    push_redo_stack(new_redo_node);
+                    restore_undo();
+                    struct cmd_node *old_undo_node = undo_top;
+                    undo_top = old_undo_node->prev;
+
+                    free(old_undo_node->lines);
+                    free(old_undo_node);
+
+                    undo_stack_size--;
+                }
             }
         }else if( (num_of_undo > 0) && (num_of_redo > 0) ){     //CASO MEDIO
-            /*if(num_of_undo >= num_of_redo){
+            if(num_of_undo >= num_of_redo){
                 num_of_undo = num_of_undo - num_of_redo;
 
                 if( num_of_undo >= stack_size ){
                     //riporta tutto il contenuto dell'undo_stack nello stack principale
-                    for(int i=1; i<=(stack_size);i++){
+                    /*for(int i=1; i<=(stack_size);i++){
                         struct cmd_node *node_popped = pop();
                         pop_restorePrevState(node_popped);
                         push_undo(node_popped);
+                    }*/
+                    while (undo_stack_size != 0 && undo_top != NULL){
+                        struct cmd_node *new_redo_node = create_redo_node(undo_top->addr1, undo_top->addr2, undo_top->cmd);
+                        push_redo_stack(new_redo_node);
+                        restore_undo();
+
+                        struct cmd_node *old_undo_node = undo_top;
+                        undo_top = old_undo_node->prev;
+
+                        free(old_undo_node->lines);
+                        free(old_undo_node);
+
+                        undo_stack_size--;
                     }
                 }else{
                     //fa num_of_undo undo, date dalla somma di undo e redo
-                    for(int i=1; i<=(num_of_undo);i++){
+                    /*for(int i=1; i<=(num_of_undo);i++){
                         struct cmd_node *node_popped = pop();
                         pop_restorePrevState(node_popped);
                         push_undo(node_popped);
+                    }*/
+                    for(int i=1; i<=(num_of_undo);i++){
+                        struct cmd_node *new_redo_node = create_redo_node(undo_top->addr1, undo_top->addr2, undo_top->cmd);
+                        push_redo_stack(new_redo_node);
+                        restore_undo();
+                        struct cmd_node *old_undo_node = undo_top;
+                        undo_top = old_undo_node->prev;
+
+                        free(old_undo_node->lines);
+                        free(old_undo_node);
+
+                        undo_stack_size--;
                     }
                 }
 
@@ -578,20 +659,20 @@ void undo_redo(unsigned int flag){
 
                 if(num_of_redo >= undo_stack_size){
                     //azzera undo_stack
-                    int cycles = undo_stack_size;
+                    /*int cycles = undo_stack_size;
                     for(int i=1; i<=(cycles);i++){
                         struct cmd_node *node_popped = pop_undo();
                         push(node_popped);
-                    }
+                    }*/
                 }else{
                     //rimette num_of_redo-nodi nello stack principale
-                    for(int i=1; i<=(num_of_redo);i++){
+                    /*for(int i=1; i<=(num_of_redo);i++){
                         struct cmd_node *node_popped = pop_undo();
                         push(node_popped);
-                    }
+                    }*/
                 }
-            }*/
-        }
+            }
+        }//FINE CASO MEDIO
         
     }
     
@@ -602,7 +683,7 @@ void undo_redo(unsigned int flag){
 *returns the top node from the undo stack 
 */
 struct cmd_node *pop_undo_top(){
-    if(undo_top != NULL){
+    //if(undo_top != NULL){
         struct cmd_node *node_to_pop = undo_top;
         undo_top = undo_top->prev;
         undo_top->next = NULL;
@@ -611,15 +692,15 @@ struct cmd_node *pop_undo_top(){
         node_to_pop->prev = NULL;
 
         return node_to_pop;
-    }
-    return NULL;
+    //}
+    //return NULL;
 }
 
 
-void pop_undo_restore_prev_state(struct cmd_node* popped_node){
+/*void pop_undo_restore_prev_state(struct cmd_node* popped_node){
     //struct cmd_node* node = popped_node;
     if(popped_node->cmd == 'c'){
-        int added_lines = (popped_node->addr2 - popped_node->addr1 +1) - popped_node->num_of_el; //calcolo la differenza tra righe effettivamente modificate e quelle aggiunte
+        int added_lines = popped_node->addr2-popped_node->addr1+1-popped_node->num_of_el; //calcolo la differenza tra righe effettivamente modificate e quelle aggiunte
         if( added_lines == 0 ){   //ho solo cambiato e non aggiunto
 
             for(int i=0; i < (popped_node->addr2 - popped_node->addr1); i++){
@@ -642,18 +723,19 @@ void pop_undo_restore_prev_state(struct cmd_node* popped_node){
                     popped_node->num_of_el = added_lines;
 
                 }else{  //hashtable era vuota
-                    popped_node->lines = (char **)realloc(popped_node->lines,(added_lines)*sizeof(char*));
-
+                    //popped_node->lines = (char **)realloc(popped_node->lines,(added_lines)*sizeof(char*));
+                    
                     for(int i=0; i < (popped_node->addr2 - popped_node->addr1); i++){
+                        printf("INDEX: %d\n",i);
                         popped_node->lines[i] = hashtable[popped_node->addr1-1+i].curr_line;
                     }
-                    resizeHashTable(hashtable_size-added_lines); //(provare a controlloare cosa succedere se si fda realloc di 0)
-                    if(hashtable != NULL){
-                        hashtable = NULL;
+                    resizeHashTable(0)//hashtable_size-added_lines); //(provare a controlloare cosa succedere se si fda realloc di 0)
+                    if(hashtable_size != 0){
+                        //hashtable = NULL;
                         hashtable_size = 0;
                     }
 
-                    popped_node->num_of_el = added_lines;
+                    //popped_node->num_of_el = added_lines;
                 }
             }else{  //ho modificato delle righe e aggiunto delle nuove
                 
@@ -680,7 +762,7 @@ void pop_undo_restore_prev_state(struct cmd_node* popped_node){
     }
 
     //forse dovrei fare che ritorna il nodo poppato
-}
+}*/
 
 
 /*
@@ -701,4 +783,65 @@ void free_redo_stack(){
 
     redo_top = NULL;
     redo_bottom = redo_top;
+}
+
+
+/*
+*
+*/
+struct cmd_node *create_redo_node(int address1, int address2, char cmd){
+    struct cmd_node *node = (struct cmd_node*)malloc(sizeof(struct cmd_node));
+    node->addr1 = address1;
+    node->addr2 = address2;
+    node->cmd = cmd;
+    node->old_ht_size = hashtable_size;
+
+    node->num_of_el = (address2-address1+1);
+    node->lines = (char **)malloc((node->num_of_el)*sizeof(char*));
+
+    for(int i=0; i<=node->num_of_el-1; i++){
+        node->lines[i] = hashtable[address1-1+i].curr_line;
+    }
+
+    node->prev = NULL;
+    node->next = NULL;
+
+    return node;
+}
+
+/*
+*
+*/
+void restore_undo(){     
+        if(undo_top->cmd == 'c'){
+        if(undo_top->num_of_el == 0 && undo_top->lines == NULL){    //Non si aveva solo aggiunto e la hashtable era vuota
+            //fputs("SEI IN 1\n",stdout);
+            if(undo_top->old_ht_size > 0){//hashtable esisteva già e ho solo aggiunto righe
+                resizeHashTable(undo_top->old_ht_size);
+            }else{  //hashtable era vuota
+                hashtable = NULL;
+                hashtable_size = 0;
+            }
+            
+
+        }else if(undo_top->num_of_el > 0 && undo_top->lines != NULL){
+            if(undo_top->num_of_el == (undo_top->addr2-undo_top->addr1+1) ){    //Avevo solo cambiato righe
+                for(int i=0; i<= ((undo_top->num_of_el)-1);i++){
+                    hashtable[undo_top->addr1-1+i].curr_line = undo_top->lines[i];
+                }
+
+            }else if(undo_top->num_of_el < (undo_top->addr2-undo_top->addr1+1) ){   //Avevo cambiato alcune righe e aggiunto n°righe pari a: ((addr2-addr1+1)-num_of_el)
+                //fputs("SEI IN 3\n",stdout);
+                resizeHashTable(undo_top->old_ht_size);
+                for(int i=0; i<= ((undo_top->num_of_el)-1);i++){
+                    hashtable[undo_top->addr1-1+i].curr_line = undo_top->lines[i];
+                }
+            }
+        }
+
+        //VERIFICARE SE CI SONO TUTTI I CASI
+
+    }else if(undo_top->cmd == 'd'){
+
+    }
 }
