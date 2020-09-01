@@ -69,8 +69,10 @@ struct cmd_node *pop_undo_top();
 
 //void pop_undo_restore_prev_state(struct cmd_node* popped_node);
 void restore_undo();
+void restore_redo();
 
 struct cmd_node *create_redo_node(int address1, int address2, char cmd);
+struct cmd_node *create_undo_node(int address1, int address2, char cmd);
 void free_redo_stack();
 
 /*===============================================================================*/
@@ -98,6 +100,7 @@ int main(int argc, char const *argv[]) {
                     num_of_undo = 0;
                     num_of_redo = 0;
                 }
+                //free_redo_stack();
                 address1 = atoi(strtok(in_line,DELIMITER));
                 address2 = atoi(strtok(NULL,"c"));
 
@@ -129,7 +132,7 @@ int main(int argc, char const *argv[]) {
                     num_of_undo = 0;
                     num_of_redo = 0;
                 }
-
+                //free_redo_stack();
                 address1 = atoi(strtok(in_line,DELIMITER));
                 address2 = atoi(strtok(NULL,"d"));
                 if(address1 == 0 && address2 > 0){
@@ -149,10 +152,10 @@ int main(int argc, char const *argv[]) {
 
                 if((num_of_undo > 0) || (num_of_redo > 0)){    //do all the remaining undo to do
                     undo_redo(0);
+                    num_of_undo = 0;
+                    num_of_redo = 0;
                 }
-
-                num_of_undo = 0;
-                num_of_redo = 0;
+                
 
                 address1 = atoi(strtok(in_line,DELIMITER));
                 address2 = atoi(strtok(NULL,"p"));
@@ -532,20 +535,58 @@ void undo_redo(unsigned int flag){
         
     }else{ //'p' command
         if( (num_of_undo == 0) && (num_of_redo > 0) ){//SOLO REDO
-            if( num_of_redo >= undo_stack_size ){
+            if( num_of_redo >= redo_stack_size ){
                 //riporta tutto il contenuto dell'undo_stack nello stack principale
-                int cycles = undo_stack_size;
+                /*int cycles = undo_stack_size;
                 for(int i=1; i<=(cycles);i++){
-                    //struct cmd_node *node_popped = pop_undo();
-                    //push_undo_stack(node_popped);
+                    struct cmd_node *new_redo_node = create_redo_node(undo_top->addr1, undo_top->addr2, undo_top->cmd);
+                    push_redo_stack(new_redo_node);
+                    //printf("REDO STACK SIZE: %d\n",redo_stack_size);
+                    restore_undo();
+
+                    //----PERÒ È SBAGLIATA DA FARE COSÌ-----*
+                    //free(hashtable);
+                    //hashtable = NULL;
+                    //hashtable_size = 0;
+                    //---------//
+                    
+                    struct cmd_node *old_undo_node = undo_top;
+                    undo_top = old_undo_node->prev;
+
+                    free(old_undo_node->lines);
+                    free(old_undo_node);
+
+                    undo_stack_size--;
+                }*/
+                while (redo_stack_size != 0 && redo_top != NULL){
+                    struct cmd_node *new_undo_node = create_undo_node(redo_top->addr1, redo_top->addr2, redo_top->cmd);
+                    push_undo_stack(new_undo_node);
+                    //printf("REDO STACK SIZE: %d\n",redo_stack_size);
+                    restore_redo();
+
+                    struct cmd_node *old_redo_node = redo_top;
+                    redo_top = old_redo_node->prev;
+
+                    free(old_redo_node->lines);
+                    free(old_redo_node);
+
+                    redo_stack_size--;
                 }
+
             }else{
                 //riporta num_of_redo nodi nello stack pricipale
                 for(int i=1; i<=(num_of_redo);i++){
-                    //struct cmd_node *node_popped = pop_undo();
-                    //if(node_popped != NULL){
-                    //    push(node_popped);
-                    //}
+                    struct cmd_node *new_undo_node = create_undo_node(redo_top->addr1, redo_top->addr2, redo_top->cmd);
+                    push_undo_stack(new_undo_node);
+                    //printf("REDO STACK SIZE: %d\n",redo_stack_size);
+                    restore_redo();
+
+                    struct cmd_node *old_redo_node = redo_top;
+                    redo_top = old_redo_node->prev;
+                    free(old_redo_node->lines);
+                    free(old_redo_node);
+
+                    redo_stack_size--;
                 }
             }
 
@@ -644,19 +685,38 @@ void undo_redo(unsigned int flag){
                 num_of_redo = num_of_redo - num_of_undo;
 
                 if(num_of_redo >= redo_stack_size){
-                    //azzera undo_stack
-                    /*int cycles = undo_stack_size;
-                    for(int i=1; i<=(cycles);i++){
-                        struct cmd_node *node_popped = pop_undo();
-                        push(node_popped);
-                    }*/
+                    //azzera redo_stack
+                    while (redo_stack_size != 0 && redo_top != NULL){
+                        struct cmd_node *new_undo_node = create_undo_node(redo_top->addr1, redo_top->addr2, redo_top->cmd);
+                        push_undo_stack(new_undo_node);
+                        //printf("REDO STACK SIZE: %d\n",redo_stack_size);
+                        restore_redo();
+
+                        struct cmd_node *old_redo_node = redo_top;
+                        redo_top = old_redo_node->prev;
+
+                        free(old_redo_node->lines);
+                        free(old_redo_node);
+
+                        redo_stack_size--;
+                    }
                 }else{
                     //rimette num_of_redo-nodi nello stack principale
-                    /*for(int i=1; i<=(num_of_redo);i++){
-                        struct cmd_node *node_popped = pop_undo();
-                        push(node_popped);
-                    }*/
+                    for(int i=1; i<=(num_of_redo);i++){
+                        struct cmd_node *new_undo_node = create_undo_node(redo_top->addr1, redo_top->addr2, redo_top->cmd);
+                        push_undo_stack(new_undo_node);
+                        //printf("REDO STACK SIZE: %d\n",redo_stack_size);
+                        restore_redo();
+
+                        struct cmd_node *old_redo_node = redo_top;
+                        redo_top = old_redo_node->prev;
+                        free(old_redo_node->lines);
+                        free(old_redo_node);
+
+                        redo_stack_size--;
+                    }
                 }
+
             }
         }//FINE CASO MEDIO
         
@@ -776,7 +836,8 @@ void free_redo_stack(){
 *
 */
 struct cmd_node *create_redo_node(int address1, int address2, char cmd){
-    struct cmd_node *node = (struct cmd_node*)malloc(sizeof(struct cmd_node));
+    //NON CANCELLARE NULLA DI QUELLO CHE È COMMENTATO
+    /*struct cmd_node *node = (struct cmd_node*)malloc(sizeof(struct cmd_node));
     node->addr1 = address1;
     node->addr2 = address2;
     node->cmd = cmd;
@@ -795,31 +856,73 @@ struct cmd_node *create_redo_node(int address1, int address2, char cmd){
                 node->lines[i] = hashtable[address1-1+i].curr_line;
             }
         }
-        //else{
-            //CONTROLLARE COSA E FINO A DOVE LEGGERE NEL CASO hashtable_size < node->num_of_el
-        //}
-
-        /*
-        //printf("--------------------------------------------\n");
-        for(int i=0; i<=node->num_of_el-1; i++){
-            //printf("READING FROM HASHTABLE[%d]: %s\n",(address1-1+i),hashtable[address1-1+i].curr_line);
-            node->lines[i] = hashtable[address1-1+i].curr_line;
-        }
-        //printf("--------------------------------------------\n");
-        */
     }    
 
     node->prev = NULL;
     node->next = NULL;
 
-    return node;
+    return node;*/
+    if(cmd == 'c'){
+        return create_c_node(address1,address2);
+    }
+    return create_d_node(address1,address2);
+}
+
+/*
+*
+*/
+struct cmd_node *create_undo_node(int address1, int address2, char cmd){
+    //NON CANCELLARE NULLA DI QUELLO CHE È COMMENTATO
+    /*struct cmd_node *node = (struct cmd_node*)malloc(sizeof(struct cmd_node));
+    node->addr1 = address1;
+    node->addr2 = address2;
+    node->cmd = cmd;
+    node->old_ht_size = hashtable_size;
+
+    if(hashtable_size==0 && hashtable ==NULL){
+        node->num_of_el = 0;
+        node->lines = NULL;
+    }else{
+        node->num_of_el = (address2-address1+1);
+        node->lines = (char **)malloc((node->num_of_el)*sizeof(char*));
+
+        if(hashtable_size >= node->num_of_el){  //controllare bene se serve
+            
+            for(int i=0; i<=node->num_of_el-1; i++){
+                //printf("READING FROM HASHTABLE[%d]: %s\n",(address1-1+i),hashtable[address1-1+i].curr_line);
+                node->lines[i] = hashtable[address1-1+i].curr_line;
+            }
+        }
+        //else{
+            //CONTROLLARE COSA E FINO A DOVE LEGGERE NEL CASO hashtable_size < node->num_of_el
+        //}
+
+        
+        //printf("--------------------------------------------\n");
+        //for(int i=0; i<=node->num_of_el-1; i++){
+            //printf("READING FROM HASHTABLE[%d]: %s\n",(address1-1+i),hashtable[address1-1+i].curr_line);
+        //    node->lines[i] = hashtable[address1-1+i].curr_line;
+        //}
+        //printf("--------------------------------------------\n");
+        
+    }    
+
+    node->prev = NULL;
+    node->next = NULL;
+
+    return node;*/
+
+    if(cmd == 'c'){
+        return create_c_node(address1,address2);
+    }
+    return create_d_node(address1,address2);
 }
 
 /*
 *
 */
 void restore_undo(){     
-        if(undo_top->cmd == 'c'){
+    if(undo_top->cmd == 'c'){
         if(undo_top->num_of_el == 0 && undo_top->lines == NULL){    //Non si aveva solo aggiunto e la hashtable era vuota
             //fputs("SEI IN 1\n",stdout);
             if(undo_top->old_ht_size > 0){//hashtable esisteva già e ho solo aggiunto righe
@@ -845,9 +948,7 @@ void restore_undo(){
                 }
             }
         }
-
         //VERIFICARE SE CI SONO TUTTI I CASI
-
     }else if(undo_top->cmd == 'd'){
         if(undo_top->num_of_el != 0 && undo_top->lines != NULL){    //ho eliminato qualcosa, se lines fosse nullo non faccio nulla perchè non avevo cancellato nulla
             int n_of_deletes = (undo_top->addr2-undo_top->addr1+1);
@@ -894,4 +995,81 @@ void restore_undo(){
             }
         }
     }//end restore 'd'
+}
+
+void restore_redo(){
+    if(redo_top->cmd == 'c'){
+        if(hashtable == NULL && hashtable_size == 0){  //HT adesso è vuota
+            resizeHashTable(redo_top->old_ht_size);
+            for(int i=0; i<= ((redo_top->num_of_el)-1);i++){
+                hashtable[redo_top->addr1-1+i].curr_line = redo_top->lines[i];
+            }
+
+        }else if(hashtable != NULL && hashtable_size > 0){  //HT adesso NON È vuota
+            if(redo_top->old_ht_size == hashtable_size){    //Ho solo cambiato delle righe senza aggiungerne
+                
+                for(int i=0; i<= ((redo_top->num_of_el)-1);i++){
+                    hashtable[redo_top->addr1-1+i].curr_line = redo_top->lines[i];
+                }
+
+            }else if(redo_top->old_ht_size > hashtable_size){
+
+                resizeHashTable(redo_top->old_ht_size);
+                for(int i=0; i<= ((redo_top->num_of_el)-1);i++){
+                    hashtable[redo_top->addr1-1+i].curr_line = redo_top->lines[i];
+                }
+
+            }
+
+        }
+
+        //VERIFICARE SE CI SONO TUTTI I CASI
+
+    }else if(redo_top->cmd == 'd'){
+        deleteElements(redo_top->addr1,redo_top->addr2);
+        /*if(redo_top->num_of_el != 0 && redo_top->lines != NULL){    //ho eliminato qualcosa, se lines fosse nullo non faccio nulla perchè non avevo cancellato nulla
+            int n_of_deletes = (redo_top->addr2-redo_top->addr1+1);
+            int prev_ht_size = hashtable_size;
+
+            if(n_of_deletes == redo_top->num_of_el){  
+                //printf("UNDO_TOP->OLD_HT_SIZE: %d\n",undo_top->old_ht_size);              
+                resizeHashTable(redo_top->old_ht_size);
+
+                if(prev_ht_size > 0){//if(undo_top->old_ht_size > 0){
+                    //shift of current elements in hashtable
+                    int i = 0;
+                    int n_cycles = (hashtable_size - redo_top->addr2);//(hashtable_size - undo_top->addr1);//(undo_top->addr2 - undo_top->addr1); 
+                    while(i < n_cycles){   // <= (?)
+                        //printf("HT_SIZE: %d\n", hashtable_size);
+                        if(hashtable[prev_ht_size-1-i].curr_line == NULL){printf("STAI LEGGENDO NULL !!!!\n");}
+                        hashtable[hashtable_size-1-i].curr_line = hashtable[prev_ht_size-1-i].curr_line;
+                        i++;
+                    }
+                }
+                //shift of current elements in hashtable
+                //int i = 0;
+                //int n_cycles = (hashtable_size - popped_node->addr1);
+                //while(i < n_cycles){   // <= (?)
+                //    if(hashtable[old_hash_table_size-1-i].curr_line == NULL){printf("STAI LEGGENDO NULL !!!!\n");}
+                //    hashtable[hashtable_size-1-i].curr_line = hashtable[old_hash_table_size-1-i].curr_line;
+                //    i++;
+                //}
+
+                //insert of old lines
+                for(int k = 0; k <= (redo_top->num_of_el-1); k++){ //(undo_top->addr2-1) -->mettere addr2 è sbagliato
+                    hashtable[redo_top->addr1-1+k].curr_line = redo_top->lines[k];
+                }
+                
+            }else if(n_of_deletes > redo_top->num_of_el){
+                resizeHashTable(redo_top->old_ht_size);
+
+                //rimetto le vecchie linee in fondo come erano prima della delete
+                int i = 0;
+                while(i < redo_top->num_of_el){   // <= (?)
+                    hashtable[redo_top->addr1-1+i].curr_line = redo_top->lines[i];
+                    i++;
+                }
+            }
+        }*/
+    } //end restore 'd'
 }
