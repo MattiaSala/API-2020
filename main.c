@@ -213,7 +213,7 @@ int main(int argc, char const *argv[]) {
 void resizeHashTable(size_t new_dimension){
     if(new_dimension == 0){
         if(hashtable != NULL){
-            free(hashtable);
+            free(hashtable);    //va anche senza
             hashtable = NULL;
             hashtable_size = 0;
         }
@@ -789,7 +789,7 @@ struct cmd_node *create_redo_node(int address1, int address2, char cmd){
         node->num_of_el = (address2-address1+1);
         node->lines = (char **)malloc((node->num_of_el)*sizeof(char*));
 
-        if(hashtable_size >= node->num_of_el){
+        if(hashtable_size >= node->num_of_el){  //controllare bene se serve
             for(int i=0; i<=node->num_of_el-1; i++){
                 //printf("READING FROM HASHTABLE[%d]: %s\n",(address1-1+i),hashtable[address1-1+i].curr_line);
                 node->lines[i] = hashtable[address1-1+i].curr_line;
@@ -825,6 +825,7 @@ void restore_undo(){
             if(undo_top->old_ht_size > 0){//hashtable esisteva già e ho solo aggiunto righe
                 resizeHashTable(undo_top->old_ht_size);
             }else{  //hashtable era vuota
+                free(hashtable);
                 hashtable = NULL;
                 hashtable_size = 0;
             }
