@@ -214,6 +214,7 @@ void resizeHashTable(size_t new_dimension){
     if(new_dimension == 0){
         if(hashtable != NULL){
             free(hashtable);
+            hashtable = NULL;
             hashtable_size = 0;
         }
     }else{
@@ -590,12 +591,7 @@ void undo_redo(unsigned int flag){
                 //printf("UNDO STACK SIZE: %d\n",undo_stack_size);
                 
             }else{
-                //porta num_of_undo nodi da stack principale in undo_stack
-                /*for(int i=1; i<=(num_of_undo);i++){
-                    struct cmd_node *node_popped = pop();
-                    pop_restorePrevState(node_popped);
-                    push_undo(node_popped);
-                }*/ 
+                //porta num_of_undo nodi da stack principale in undo_stack 
                 for(int i=1; i<=(num_of_undo);i++){
                     struct cmd_node *new_redo_node = create_redo_node(undo_top->addr1, undo_top->addr2, undo_top->cmd);
                     push_redo_stack(new_redo_node);
@@ -613,13 +609,8 @@ void undo_redo(unsigned int flag){
             if(num_of_undo >= num_of_redo){
                 num_of_undo = num_of_undo - num_of_redo;
 
-                if( num_of_undo >= stack_size ){
+                if( num_of_undo >= undo_stack_size ){
                     //riporta tutto il contenuto dell'undo_stack nello stack principale
-                    /*for(int i=1; i<=(stack_size);i++){
-                        struct cmd_node *node_popped = pop();
-                        pop_restorePrevState(node_popped);
-                        push_undo(node_popped);
-                    }*/
                     while (undo_stack_size != 0 && undo_top != NULL){
                         struct cmd_node *new_redo_node = create_redo_node(undo_top->addr1, undo_top->addr2, undo_top->cmd);
                         push_redo_stack(new_redo_node);
@@ -635,11 +626,6 @@ void undo_redo(unsigned int flag){
                     }
                 }else{
                     //fa num_of_undo undo, date dalla somma di undo e redo
-                    /*for(int i=1; i<=(num_of_undo);i++){
-                        struct cmd_node *node_popped = pop();
-                        pop_restorePrevState(node_popped);
-                        push_undo(node_popped);
-                    }*/
                     for(int i=1; i<=(num_of_undo);i++){
                         struct cmd_node *new_redo_node = create_redo_node(undo_top->addr1, undo_top->addr2, undo_top->cmd);
                         push_redo_stack(new_redo_node);
@@ -652,12 +638,12 @@ void undo_redo(unsigned int flag){
 
                         undo_stack_size--;
                     }
-                }
+                }//end caso medio solo undo
 
             }else if(num_of_undo < num_of_redo){
                 num_of_redo = num_of_redo - num_of_undo;
 
-                if(num_of_redo >= undo_stack_size){
+                if(num_of_redo >= redo_stack_size){
                     //azzera undo_stack
                     /*int cycles = undo_stack_size;
                     for(int i=1; i<=(cycles);i++){
@@ -796,12 +782,32 @@ struct cmd_node *create_redo_node(int address1, int address2, char cmd){
     node->cmd = cmd;
     node->old_ht_size = hashtable_size;
 
-    node->num_of_el = (address2-address1+1);
-    node->lines = (char **)malloc((node->num_of_el)*sizeof(char*));
+    if(hashtable_size==0 && hashtable ==NULL){
+        node->num_of_el = 0;
+        node->lines = NULL;
+    }else{
+        node->num_of_el = (address2-address1+1);
+        node->lines = (char **)malloc((node->num_of_el)*sizeof(char*));
 
-    for(int i=0; i<=node->num_of_el-1; i++){
-        node->lines[i] = hashtable[address1-1+i].curr_line;
-    }
+        if(hashtable_size >= node->num_of_el){
+            for(int i=0; i<=node->num_of_el-1; i++){
+                //printf("READING FROM HASHTABLE[%d]: %s\n",(address1-1+i),hashtable[address1-1+i].curr_line);
+                node->lines[i] = hashtable[address1-1+i].curr_line;
+            }
+        }
+        //else{
+            //CONTROLLARE COSA E FINO A DOVE LEGGERE NEL CASO hashtable_size < node->num_of_el
+        //}
+
+        /*
+        //printf("--------------------------------------------\n");
+        for(int i=0; i<=node->num_of_el-1; i++){
+            //printf("READING FROM HASHTABLE[%d]: %s\n",(address1-1+i),hashtable[address1-1+i].curr_line);
+            node->lines[i] = hashtable[address1-1+i].curr_line;
+        }
+        //printf("--------------------------------------------\n");
+        */
+    }    
 
     node->prev = NULL;
     node->next = NULL;
@@ -842,6 +848,49 @@ void restore_undo(){
         //VERIFICARE SE CI SONO TUTTI I CASI
 
     }else if(undo_top->cmd == 'd'){
+        if(undo_top->num_of_el != 0 && undo_top->lines != NULL){    //ho eliminato qualcosa, se lines fosse nullo non faccio nulla perchè non avevo cancellato nulla
+            int n_of_deletes = (undo_top->addr2-undo_top->addr1+1);
+            int prev_ht_size = hashtable_size;
 
-    }
+            if(n_of_deletes == undo_top->num_of_el){  
+                //printf("UNDO_TOP->OLD_HT_SIZE: %d\n",undo_top->old_ht_size);              
+                resizeHashTable(undo_top->old_ht_size);
+
+                if(prev_ht_size > 0){//if(undo_top->old_ht_size > 0){
+                    //shift of current elements in hashtable
+                    int i = 0;
+                    int n_cycles = (hashtable_size - undo_top->addr2);//(hashtable_size - undo_top->addr1);//(undo_top->addr2 - undo_top->addr1); 
+                    while(i < n_cycles){   // <= (?)
+                        //printf("HT_SIZE: %d\n", hashtable_size);
+                        if(hashtable[prev_ht_size-1-i].curr_line == NULL){printf("STAI LEGGENDO NULL !!!!\n");}
+                        hashtable[hashtable_size-1-i].curr_line = hashtable[prev_ht_size-1-i].curr_line;
+                        i++;
+                    }
+                }
+                //shift of current elements in hashtable
+                /*int i = 0;
+                int n_cycles = (hashtable_size - popped_node->addr1);
+                while(i < n_cycles){   // <= (?)
+                    if(hashtable[old_hash_table_size-1-i].curr_line == NULL){printf("STAI LEGGENDO NULL !!!!\n");}
+                    hashtable[hashtable_size-1-i].curr_line = hashtable[old_hash_table_size-1-i].curr_line;
+                    i++;
+                }*/
+
+                //insert of old lines
+                for(int k = 0; k <= (undo_top->num_of_el-1); k++){ //(undo_top->addr2-1) -->mettere addr2 è sbagliato
+                    hashtable[undo_top->addr1-1+k].curr_line = undo_top->lines[k];
+                }
+                
+            }else if(n_of_deletes > undo_top->num_of_el){
+                resizeHashTable(undo_top->old_ht_size);
+
+                //rimetto le vecchie linee in fondo come erano prima della delete
+                int i = 0;
+                while(i < undo_top->num_of_el){   // <= (?)
+                    hashtable[undo_top->addr1-1+i].curr_line = undo_top->lines[i];
+                    i++;
+                }
+            }
+        }
+    }//end restore 'd'
 }
