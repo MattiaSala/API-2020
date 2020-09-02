@@ -99,10 +99,13 @@ int main(int argc, char const *argv[]) {
                 if((num_of_undo > 0) || (num_of_redo > 0)){//do all the remaining undo to do
                     //undo_redo(1);
                     do_undo_redo();
-                    num_of_undo = 0;
-                    num_of_redo = 0;
+                    //num_of_undo = 0;
+                    //num_of_redo = 0;
                 }
                 free_redo_stack();
+
+                num_of_undo = 0;
+                num_of_redo = 0;
 
                 address1 = atoi(strtok(in_line,DELIMITER));
                 address2 = atoi(strtok(NULL,"c"));           
@@ -129,11 +132,15 @@ int main(int argc, char const *argv[]) {
                 if((num_of_undo > 0) || (num_of_redo > 0)){//do all the remaining undo to do
                     //undo_redo(1);
                     do_undo_redo();
-                    num_of_undo = 0;
-                    num_of_redo = 0;
+                    //num_of_undo = 0;
+                    //num_of_redo = 0;
                 }
                 
                 free_redo_stack();
+                
+                num_of_undo = 0;
+                num_of_redo = 0;
+
                 address1 = atoi(strtok(in_line,DELIMITER));
                 address2 = atoi(strtok(NULL,"d"));
                 if(address1 == 0 && address2 > 0){
@@ -149,10 +156,12 @@ int main(int argc, char const *argv[]) {
                 if((num_of_undo > 0) || (num_of_redo > 0)){    //do all the remaining undo to do
                     //undo_redo(0);
                     do_undo_redo();
-                    num_of_undo = 0;
-                    num_of_redo = 0;
+                    //num_of_undo = 0;
+                    //num_of_redo = 0;
                 }
                 
+                num_of_undo = 0;
+                num_of_redo = 0;
 
                 address1 = atoi(strtok(in_line,DELIMITER));
                 address2 = atoi(strtok(NULL,"p"));
@@ -162,11 +171,11 @@ int main(int argc, char const *argv[]) {
             else if(cmnd == 'u'){    //u: undo of num cmds
                 number = atoi(strtok(in_line,"u"));
 
-                if(undo_stack_size == 0){
+                /*if(undo_stack_size == 0){
                     num_of_undo = 0;
                 }
-                else if((num_of_undo + number) > undo_stack_size && (undo_stack_size > 0)){    //if the number of undos is bigger than the current size of stack of commands
-                    num_of_undo = undo_stack_size;
+                else */if((num_of_undo + number) >= undo_stack_size+num_of_redo ){    //if the number of undos is bigger than the current size of stack of commands
+                    num_of_undo = undo_stack_size+num_of_redo;
                 }else{
                     num_of_undo += number;
                 }    
@@ -174,11 +183,11 @@ int main(int argc, char const *argv[]) {
             else if(cmnd == 'r'){    //r: redo of num cmds
                 number = atoi(strtok(in_line,"r"));
 
-                if(redo_stack_size == 0){
+                /*if(redo_stack_size == 0){
                     num_of_redo = 0;
                 }
-                else if((num_of_redo + number) > redo_stack_size && (redo_stack_size > 0) ){
-                    num_of_redo = redo_stack_size;
+                else */if((num_of_redo + number) >= redo_stack_size+num_of_undo){
+                    num_of_redo = redo_stack_size+num_of_undo;
                 }else{
                     num_of_redo += number;
                 }
