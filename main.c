@@ -65,7 +65,7 @@ void push_undo_stack(struct cmd_node *node);
 void deleteElements(unsigned int a1, unsigned int a2);
 
 void undo_redo(unsigned int flag);
-struct cmd_node *pop_undo_top();
+void do_undo_redo();
 
 //void pop_undo_restore_prev_state(struct cmd_node* popped_node);
 void restore_undo();
@@ -80,33 +80,32 @@ void free_redo_stack();
 int main(int argc, char const *argv[]) {
     /*read line and analyze it*/
     hashtable = NULL;
+
+    undo_top = NULL;
+    undo_bottom = undo_top;
+
+    redo_top = NULL;
+    redo_bottom = redo_top;
+
     while ((in_line = fgets(cmdLine,MAX_READ,stdin)) != NULL) { //reads the entire line from stdin use
 
             char cmnd = findcmd(in_line);   //take the last char of the string to identify what the command is  fputs(),
 
             if(cmnd == 'q'){ //q: quit
-                //printStack(bottom);
-                //freeAll();
-                //freeAllUndoStack(); //NEW
                 return 0;
             }
 
             else if(cmnd == 'c'){    //c: changes the text between [addr1 ; addr2] with given lines from stdin
-                //printHashTable();
-                //printStack(bottom);
-                //int old_size = hashtable_size;
                 if((num_of_undo > 0) || (num_of_redo > 0)){//do all the remaining undo to do
-                    undo_redo(1);
+                    //undo_redo(1);
+                    do_undo_redo();
                     num_of_undo = 0;
                     num_of_redo = 0;
                 }
-                //free_redo_stack();
+                free_redo_stack();
+
                 address1 = atoi(strtok(in_line,DELIMITER));
-                address2 = atoi(strtok(NULL,"c"));
-
-                //printf("COMANDO IN INPUT: %d,%d%c\n",address1,address2,cmnd);
-
-                
+                address2 = atoi(strtok(NULL,"c"));           
 
                 struct cmd_node *new_node = create_c_node(address1,address2); //createnode(address1,address2,cmnd,strings);
                 push_undo_stack(new_node);
@@ -120,38 +119,36 @@ int main(int argc, char const *argv[]) {
                     size_t size = strlen(in_line)+1;
                     char *string = NULL;
                     string = (char *) malloc((size)*sizeof(char));
-                    //memcpy(string,in_line,(size));
-                    strcpy(string,in_line);
+                    memcpy(string,in_line,(size));
+                    //strcpy(string,in_line);
                     insertLineInHash(string, (address1-1+i));
                 }
 
             }
             else if(cmnd == 'd'){    //d: delete the text between [addr1 ; addr2]
                 if((num_of_undo > 0) || (num_of_redo > 0)){//do all the remaining undo to do
-                    undo_redo(1);
+                    //undo_redo(1);
+                    do_undo_redo();
                     num_of_undo = 0;
                     num_of_redo = 0;
                 }
-                //free_redo_stack();
+                
+                free_redo_stack();
                 address1 = atoi(strtok(in_line,DELIMITER));
                 address2 = atoi(strtok(NULL,"d"));
                 if(address1 == 0 && address2 > 0){
                     address1 = 1;
                 }
 
-                //printf("COMANDO IN INPUT: %d,%d%c\n",address1,address2,cmnd);
-
                 struct cmd_node *new_node = create_d_node(address1,address2); //createnode(address1,address2,cmnd,NULL);
-                //printHashTable();
                 push_undo_stack(new_node);
-                deleteElements(address1,address2);    //---------*******-------
-                //printHashTable();
-                //printf("MAIN STACK SIZE: %d  ---------  UNDO STACK SIZE: %d\n\n", stack_size, undo_stack_size);
+                deleteElements(address1,address2);    
             }
             else if(cmnd == 'p'){    //p: print lines from data structure into an output file
 
                 if((num_of_undo > 0) || (num_of_redo > 0)){    //do all the remaining undo to do
-                    undo_redo(0);
+                    //undo_redo(0);
+                    do_undo_redo();
                     num_of_undo = 0;
                     num_of_redo = 0;
                 }
@@ -159,10 +156,6 @@ int main(int argc, char const *argv[]) {
 
                 address1 = atoi(strtok(in_line,DELIMITER));
                 address2 = atoi(strtok(NULL,"p"));
-
-                //printf("COMANDO IN INPUT: %d,%d%c\n",address1,address2,cmnd);
-                //printf("MAIN STACK SIZE: %d  ---------  UNDO STACK SIZE: %d\n\n", stack_size, undo_stack_size);
-                //printHashTable();
                 print(address1,address2);
 
             }
@@ -225,7 +218,7 @@ void resizeHashTable(size_t new_dimension){
             hashtable = (key *)calloc(new_dimension,sizeof(key));        
         }else{
             hashtable = (key *)realloc(hashtable,(new_dimension)*sizeof(key));
-            for(int i=hashtable_size; i<new_dimension; i++){    //meh non mi piace ma fa funzionare
+            for(int i=hashtable_size; i<new_dimension; i++){    //meh non mi piace ma fa funzionare-mette a NULL le nuove posizioni istanziate
                 hashtable[i].curr_line = NULL;
             }
         }
@@ -246,21 +239,10 @@ void print(unsigned int addr_start, unsigned int addr_end){
             fputs(".\n",stdout);
         }
     }    
-    /*else if(addr_start > hashtable_size && addr_end > hashtable_size && hashtable != NULL){ //se stampo indirizzi oltre la dimensione hashtable.
-        //for(int i=0; i< (addr_end-addr_start);i++){
-        //    fputs(".\n",stdout);
-        //}
-        for(int i=addr_start; i<= addr_end;i++){
-            fputs(".\n",stdout);
-        }
-
-    }*/
     else if(addr_start <= hashtable_size && addr_end > hashtable_size && hashtable != NULL){ //se l'indirizzo iniziale è contenuto nella hashtable, ma non quello  finale.
         for(int i=addr_start-1; i<= hashtable_size-1;i++){ 
             if(hashtable[i].curr_line != NULL){
                 fputs(hashtable[i].curr_line ,stdout);
-            }else{
-                fputs("YOU READING A NULL LINE!!! \n",stdout);
             }
         }
 
@@ -272,12 +254,7 @@ void print(unsigned int addr_start, unsigned int addr_end){
 
     }else if( addr_start <= hashtable_size && addr_end <= hashtable_size && hashtable != NULL ){  //Se sia addr_start che addr_end sono dimensioni interne alla hashtable_size
         for(int i=addr_start-1; i< addr_end;i++){
-            //if(hashtable[i].curr_line == NULL){
-            //    fputs("STAI A LEGGE NULL FRATM\n",stdout);
-            //}else{
-                fputs(hashtable[i].curr_line ,stdout);
-            //}
-            
+                fputs(hashtable[i].curr_line ,stdout);            
         }
     }
 }
@@ -316,8 +293,6 @@ void insertLineInHash(char *str, int index){
                 str = NULL;
             }
         }
-
-        
     }else{
         hashtable[index].curr_line = str;
     }
@@ -419,17 +394,12 @@ void push_undo_stack(struct cmd_node *node){
     if(undo_stack_size == 0 && undo_top == NULL){    //provare anche con  top == NULL
         undo_bottom = node;
         undo_top = undo_bottom;
-        undo_top->next = NULL; //---------new
+
         undo_stack_size++;
 
     }else{
  
         if(node != NULL){
-            /*undo_top->next = node;
-            node->prev = undo_top;
-            undo_top = node;
-            undo_top->next = NULL; //---------new*/
-
             undo_top->next = node;
             node->prev = undo_top;
             undo_top = node;
@@ -447,21 +417,15 @@ void push_redo_stack(struct cmd_node *node){
     if(redo_stack_size == 0 && redo_top == NULL){    //provare anche con  top == NULL
         redo_bottom = node;
         redo_top = redo_bottom;
-        //redo_top->next = NULL; //---------new
+
         redo_stack_size++;
 
     }else{
  
         if(node != NULL){
-            /*redo_top->next = node;
-            redo_top->prev = redo_top;
-            redo_top = node;
-            redo_top->next = NULL; //---------new*/
-
             redo_top->next = node;
             node->prev = redo_top;
             redo_top = node;
-            //redo_top->next = NULL;
 
             redo_stack_size++;
         }
@@ -482,7 +446,7 @@ void deleteElements(unsigned int a1, unsigned int a2){
         else if ( (a1 == 1) && (a2 >= hashtable_size) ){
             hashtable_size = 0;
             free(hashtable);
-            hashtable = NULL;   //<---AGGIUNTO QUESTO, PERCHÈ DOPO CHE SI FA LA FREE, È BUONA PRATICA METTERE A NULL CIÒ DI CUI SI È FATTA LA FREE.
+            hashtable = NULL;
         }
         else if( (a1<hashtable_size) && (a2>hashtable_size) ){ //se 'a1' è dentro nella hashtable, ma a2 no.
             int n_del = hashtable_size-a1+1;
@@ -510,7 +474,7 @@ void deleteElements(unsigned int a1, unsigned int a2){
         if (a2 >= hashtable_size){
             hashtable_size = 0;
             free(hashtable);
-            hashtable = NULL;  //<---AGGIUNTO QUESTO, PERCHÈ DOPO CHE SI FA LA FREE, È BUONA PRATICA METTERE A NULL CIÒ DI CUI SI È FATTA LA FREE.
+            hashtable = NULL;
         }
         else{
             int ad1 = (a1+1);
@@ -539,7 +503,6 @@ void undo_redo(unsigned int flag){
                 undo_redo(0);
             }
 
-            free_redo_stack();//free nodes of undo stack
         }
         
     }else{ //'p' command
@@ -741,22 +704,202 @@ void undo_redo(unsigned int flag){
     
 }
 
-/*
-*returns the top node from the undo stack 
-*/
-struct cmd_node *pop_undo_top(){
-    //if(undo_top != NULL){
-        struct cmd_node *node_to_pop = undo_top;
-        undo_top = undo_top->prev;
-        undo_top->next = NULL;
+/*-------------------------------------------------------------------------------------------------*/
+void do_undo_redo(){
+    if( (num_of_undo == 0) && (num_of_redo > 0) ){//SOLO REDO
+        if( num_of_redo >= redo_stack_size ){
+            //riporta tutto il contenuto dell'undo_stack nello stack principale
+            while (redo_stack_size != 0 && redo_top != NULL){
+                struct cmd_node *new_undo_node = create_undo_node(redo_top->addr1, redo_top->addr2, redo_top->cmd);
+                push_undo_stack(new_undo_node);
+                //printf("REDO STACK SIZE: %d\n",redo_stack_size);
+                restore_redo();
 
-        node_to_pop->next = NULL;
-        node_to_pop->prev = NULL;
+                struct cmd_node *old_redo_node = redo_top;
+                redo_top = old_redo_node->prev;
 
-        return node_to_pop;
-    //}
-    //return NULL;
+                free(old_redo_node->lines);
+                free(old_redo_node);
+
+                old_redo_node = NULL;
+
+                if(redo_top != NULL){
+                    redo_top->next = NULL;
+                }
+
+                redo_stack_size--;
+            }
+
+        }else{
+            //riporta num_of_redo nodi nello stack pricipale
+            for(int i=1; i<=(num_of_redo);i++){
+                struct cmd_node *new_undo_node = create_undo_node(redo_top->addr1, redo_top->addr2, redo_top->cmd);
+                push_undo_stack(new_undo_node);
+                //printf("REDO STACK SIZE: %d\n",redo_stack_size);
+                restore_redo();
+
+                struct cmd_node *old_redo_node = redo_top;
+                redo_top = old_redo_node->prev;
+                free(old_redo_node->lines);
+                free(old_redo_node);
+
+                old_redo_node = NULL;
+
+                if(redo_top != NULL){
+                    redo_top->next = NULL;
+                }
+
+                redo_stack_size--;
+            }
+        }
+
+    }else if( (num_of_undo > 0) && (num_of_redo == 0) ){    //SOLO UNDO
+        if(num_of_undo >= undo_stack_size){
+            //porta il restante dello stack principale, dentro l'undo_stack
+            //printf("REDO STACK SIZE: %d\n",redo_stack_size);
+            //printf("UNDO STACK SIZE: %d\n",undo_stack_size);
+            while (undo_stack_size != 0 && undo_top != NULL)
+            {
+                struct cmd_node *new_redo_node = create_redo_node(undo_top->addr1, undo_top->addr2, undo_top->cmd);
+                push_redo_stack(new_redo_node);
+                //printf("REDO STACK SIZE: %d\n",redo_stack_size);
+                restore_undo();
+                
+                struct cmd_node *old_undo_node = undo_top;
+                undo_top = old_undo_node->prev;
+
+                free(old_undo_node->lines);
+                free(old_undo_node);
+                old_undo_node = NULL;
+
+                if(undo_top != NULL){
+                    undo_top->next = NULL;
+                }                    
+
+                undo_stack_size--;
+            }
+
+            //printf("UNDO STACK SIZE: %d\n",undo_stack_size);
+            
+        }else{
+            //porta num_of_undo nodi da stack principale in undo_stack 
+            for(int i=1; i<=(num_of_undo);i++){
+                struct cmd_node *new_redo_node = create_redo_node(undo_top->addr1, undo_top->addr2, undo_top->cmd);
+                push_redo_stack(new_redo_node);
+                restore_undo();
+                struct cmd_node *old_undo_node = undo_top;
+                undo_top = old_undo_node->prev;
+
+                free(old_undo_node->lines);
+                free(old_undo_node);
+
+                old_undo_node = NULL;
+
+                if(undo_top != NULL){
+                    undo_top->next = NULL;
+                } 
+
+                undo_stack_size--;
+            }
+        }
+    }else if( (num_of_undo > 0) && (num_of_redo > 0) ){     //CASO MEDIO
+        if(num_of_undo >= num_of_redo){
+            num_of_undo = num_of_undo - num_of_redo;
+
+            if( num_of_undo >= undo_stack_size ){
+                //riporta tutto il contenuto dell'undo_stack nello stack principale
+                while (undo_stack_size != 0 && undo_top != NULL){
+                    struct cmd_node *new_redo_node = create_redo_node(undo_top->addr1, undo_top->addr2, undo_top->cmd);
+                    push_redo_stack(new_redo_node);
+                    restore_undo();
+
+                    struct cmd_node *old_undo_node = undo_top;
+                    undo_top = old_undo_node->prev;
+
+                    free(old_undo_node->lines);
+                    free(old_undo_node);
+                    old_undo_node = NULL;
+
+                    if(undo_top != NULL){
+                        undo_top->next = NULL;
+                    } 
+
+                    undo_stack_size--;
+                }
+            }else{
+                //fa num_of_undo undo, date dalla somma di undo e redo
+                for(int i=1; i<=(num_of_undo);i++){
+                    struct cmd_node *new_redo_node = create_redo_node(undo_top->addr1, undo_top->addr2, undo_top->cmd);
+                    push_redo_stack(new_redo_node);
+                    restore_undo();
+                    struct cmd_node *old_undo_node = undo_top;
+                    undo_top = old_undo_node->prev;
+
+                    free(old_undo_node->lines);
+                    free(old_undo_node);
+
+                    old_undo_node = NULL;
+
+                    if(undo_top != NULL){
+                        undo_top->next = NULL;
+                    } 
+
+                    undo_stack_size--;
+                }
+            }//end caso medio solo undo
+
+        }else if(num_of_undo < num_of_redo){
+            num_of_redo = num_of_redo - num_of_undo;
+
+            if(num_of_redo >= redo_stack_size){
+                //azzera redo_stack
+                while (redo_stack_size != 0 && redo_top != NULL){
+                    struct cmd_node *new_undo_node = create_undo_node(redo_top->addr1, redo_top->addr2, redo_top->cmd);
+                    push_undo_stack(new_undo_node);
+                    //printf("REDO STACK SIZE: %d\n",redo_stack_size);
+                    restore_redo();
+
+                    struct cmd_node *old_redo_node = redo_top;
+                    redo_top = old_redo_node->prev;
+
+                    free(old_redo_node->lines);
+                    free(old_redo_node);
+
+                    old_redo_node = NULL;
+
+                    if(redo_top != NULL){
+                        redo_top->next = NULL;
+                    } 
+
+                    redo_stack_size--;
+                }
+            }else{
+                //rimette num_of_redo-nodi nello stack principale
+                for(int i=1; i<=(num_of_redo);i++){
+                    struct cmd_node *new_undo_node = create_undo_node(redo_top->addr1, redo_top->addr2, redo_top->cmd);
+                    push_undo_stack(new_undo_node);
+                    //printf("REDO STACK SIZE: %d\n",redo_stack_size);
+                    restore_redo();
+
+                    struct cmd_node *old_redo_node = redo_top;
+                    redo_top = old_redo_node->prev;
+                    free(old_redo_node->lines);
+                    free(old_redo_node);
+
+                    old_redo_node = NULL;
+
+                    if(redo_top != NULL){
+                        redo_top->next = NULL;
+                    }
+
+                    redo_stack_size--;
+                }
+            }
+
+        }
+    }//FINE CASO MEDIO
 }
+/*-------------------------------------------------------------------------------------------------*/
 
 /*
 * Frees the entire redo stack
